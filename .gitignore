@@ -1,1 +1,26 @@
-venv
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment / Secrets — NEVER commit these
+.env
+*.env
+
+# Database
+*.db
+*.sqlite3
+
+# Storage (uploaded / exported files)
+backend/storage/uploads/
+backend/storage/exports/
+
+# Test artefacts
+backend/test_*.pdf
+
+# IDE
+.idea/
+.vscode/
+*.swp

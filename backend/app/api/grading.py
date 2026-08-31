@@ -1,6 +1,5 @@
 """Grading API endpoints: upload & submit, retrieve results."""
 
-import json
 import tempfile
 from pathlib import Path
 
@@ -13,9 +12,33 @@ from app.models.submission import Submission
 from app.schemas.grading import AnnotationOut, GradingResponse, ValidatedCriterionResult, ValidationIssue
 from app.schemas.rubric import Rubric
 from app.services.grading_service import GradingError, run_grading_pipeline
+from app.services.llm_base import BaseGrader
 from app.services.mock_llm_service import MockGrader
 
 router = APIRouter(prefix="/grading", tags=["Grading"])
+
+
+def _build_grader(grader_type: str, mock_mode: str) -> BaseGrader:
+    """
+    Factory: return the appropriate grader based on the request parameter.
+
+    grader_type:
+      - "mock"   → MockGrader (default; deterministic; no API calls)
+      - "gemini" → GeminiGrader (requires GEMINI_API_KEY in .env)
+    """
+    if grader_type == "gemini":
+        try:
+            from app.services.gemini_service import GeminiGrader
+            return GeminiGrader()
+        except ValueError as e:
+            raise HTTPException(status_code=503, detail=str(e))
+        except Exception as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Failed to initialise Gemini grader: {e}",
+            )
+    # Default: mock grader
+    return MockGrader(mode=mock_mode)
 
 
 @router.post("", response_model=GradingResponse)
@@ -24,6 +47,7 @@ async def submit_grading(
     rubric_json: str = Form(..., description="Rubric JSON string"),
     question_pdf: UploadFile | None = File(None, description="Question paper (PDF, optional)"),
     mock_mode: str = Form("auto", description="Mock grader mode (auto, fully_correct, partial, etc.)"),
+    grader_type: str = Form("mock", description="Which grader to use: 'mock' or 'gemini'"),
     db: Session = Depends(get_db),
 ):
     """
@@ -39,6 +63,9 @@ async def submit_grading(
         "model_answer": "...",
         "question_text": "..."
     }
+
+    Set grader_type="gemini" to use the live Gemini API (requires GEMINI_API_KEY in .env).
+    Set grader_type="mock" (default) to use deterministic MockGrader.
     """
     # Validate rubric JSON
     try:
@@ -70,8 +97,8 @@ async def submit_grading(
         except Exception:
             pass  # Question PDF is optional
 
-    # Create grader
-    grader = MockGrader(mode=mock_mode)
+    # Select grader
+    grader = _build_grader(grader_type, mock_mode)
 
     # Run the grading pipeline
     try:
