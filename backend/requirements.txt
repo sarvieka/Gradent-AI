@@ -1,0 +1,24 @@
+# Core API
+fastapi
+uvicorn[standard]
+
+# Configuration / validation
+pydantic
+pydantic-settings
+
+# Database
+sqlalchemy
+
+# Document processing
+pymupdf
+
+# File uploads / HTTP
+python-multipart
+httpx
+
+# AI
+google-genai
+
+# Testing
+pytest
+pytest-asyncio
