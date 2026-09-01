@@ -95,6 +95,14 @@ async def run_grading_pipeline(
                         question_pdf_path, rubric, student_blocks, result, [])
         return result
 
+    # Check for extraction-level confidence flags (e.g., low OCR confidence or unreadable handwriting)
+    if extracted.low_confidence_flag:
+        result.flagged_for_human_review = True
+        ocr_reason = f"Low extraction confidence ({extracted.overall_confidence:.2f}) or unreadable handwriting detected ({extracted.extraction_method})"
+        if ocr_reason not in result.review_reasons:
+            result.review_reasons.append(ocr_reason)
+        result.status = "flagged"
+
     # --- Step 6: Resolve evidence → annotations ---
     annotation_data_list = resolve_evidence(result.criteria, student_blocks)
 

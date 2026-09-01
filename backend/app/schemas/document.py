@@ -9,6 +9,7 @@ class TextBlock(BaseModel):
     page: int             # 1-indexed page number
     text: str             # The extracted text content
     bbox: list[float]     # [x0, y0, x1, y1] in PDF points (72 DPI)
+    confidence: float = 1.0  # OCR confidence score (0.0 to 1.0)
 
 
 class ExtractedDocument(BaseModel):
@@ -17,3 +18,6 @@ class ExtractedDocument(BaseModel):
     total_pages: int
     blocks: list[TextBlock]
     raw_text: str         # Concatenated plain text for convenience
+    extraction_method: str = "pymupdf"  # "pymupdf" | "gemini_vision" | "failed"
+    overall_confidence: float = 1.0
+    low_confidence_flag: bool = False

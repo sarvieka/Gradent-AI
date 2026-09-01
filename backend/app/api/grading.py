@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.annotation import Annotation
 from app.models.submission import Submission
+from app.schemas.document import TextBlock
 from app.schemas.grading import AnnotationOut, GradingResponse, ValidatedCriterionResult, ValidationIssue
 from app.schemas.rubric import Rubric
 from app.services.grading_service import GradingError, run_grading_pipeline
 from app.services.llm_base import BaseGrader
 from app.services.mock_llm_service import MockGrader
+from app.services.rubric_service import build_rubric_from_files
 
 router = APIRouter(prefix="/grading", tags=["Grading"])
 
@@ -44,47 +46,28 @@ def _build_grader(grader_type: str, mock_mode: str) -> BaseGrader:
 @router.post("", response_model=GradingResponse)
 async def submit_grading(
     student_pdf: UploadFile = File(..., description="Student's answer paper (PDF)"),
-    rubric_json: str = Form(..., description="Rubric JSON string"),
+    rubric_json: str | None = Form(None, description="Rubric JSON string (optional if rubric_pdf is uploaded)"),
+    rubric_pdf: UploadFile | None = File(None, description="Model answer & rubric paper (PDF/document, optional)"),
     question_pdf: UploadFile | None = File(None, description="Question paper (PDF, optional)"),
     mock_mode: str = Form("auto", description="Mock grader mode (auto, fully_correct, partial, etc.)"),
     grader_type: str = Form("mock", description="Which grader to use: 'mock' or 'gemini'"),
     db: Session = Depends(get_db),
 ):
     """
-    Upload a student's answer PDF and rubric, then grade it.
-
-    The rubric_json should be a JSON string matching the Rubric schema:
-    {
-        "total_marks": 10,
-        "items": [
-            {"id": "q1_c1", "description": "...", "max_marks": 5},
-            {"id": "q1_c2", "description": "...", "max_marks": 5}
-        ],
-        "model_answer": "...",
-        "question_text": "..."
-    }
-
-    Set grader_type="gemini" to use the live Gemini API (requires GEMINI_API_KEY in .env).
-    Set grader_type="mock" (default) to use deterministic MockGrader.
+    Upload a student's answer PDF and rubric (JSON or PDF), then grade it.
     """
-    # Validate rubric JSON
-    try:
-        rubric = Rubric.model_validate_json(rubric_json)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid rubric JSON: {e}")
-
     # Validate PDF upload
     if not student_pdf.filename or not student_pdf.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=422, detail="Student file must be a PDF")
 
-    # Save uploaded PDF to temp file
+    # Save uploaded student PDF to temp file
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             content = await student_pdf.read()
             tmp.write(content)
             student_pdf_path = Path(tmp.name)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded student file: {e}")
 
     # Save question PDF if provided
     question_pdf_path = None
@@ -96,6 +79,29 @@ async def submit_grading(
                 question_pdf_path = Path(tmp.name)
         except Exception:
             pass  # Question PDF is optional
+
+    # Save rubric PDF if provided
+    rubric_pdf_path = None
+    if rubric_pdf and rubric_pdf.filename:
+        try:
+            suffix = Path(rubric_pdf.filename).suffix or ".pdf"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                content = await rubric_pdf.read()
+                tmp.write(content)
+                rubric_pdf_path = Path(tmp.name)
+        except Exception:
+            pass
+
+    # Build/parse Rubric object from rubric_json OR rubric_pdf
+    try:
+        rubric = build_rubric_from_files(
+            rubric_pdf_path=rubric_pdf_path,
+            question_pdf_path=question_pdf_path,
+            rubric_json_str=rubric_json,
+            use_gemini=(grader_type == "gemini"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid rubric or rubric file: {e}")
 
     # Select grader
     grader = _build_grader(grader_type, mock_mode)
@@ -111,6 +117,11 @@ async def submit_grading(
         )
     except GradingError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    # Fetch submission record to get text blocks
+    submission = db.query(Submission).filter(Submission.id == result.submission_id).first()
+    text_blocks_data = submission.get_text_blocks() if submission else []
+    text_blocks = [TextBlock(**b) for b in text_blocks_data]
 
     # Fetch annotations for the response
     annotations = db.query(Annotation).filter(
@@ -128,6 +139,7 @@ async def submit_grading(
         review_reasons=result.review_reasons,
         validation_issues=result.validation_issues,
         status=result.status,
+        text_blocks=text_blocks,
         annotations=[
             AnnotationOut(
                 id=a.id,
@@ -158,6 +170,10 @@ def get_grading_result(submission_id: str, db: Session = Depends(get_db)):
     criteria_data = submission.get_criteria()
     criteria = [ValidatedCriterionResult(**c) for c in criteria_data]
 
+    # Reconstruct text blocks from JSON
+    text_blocks_data = submission.get_text_blocks()
+    text_blocks = [TextBlock(**b) for b in text_blocks_data]
+
     # Reconstruct validation issues
     issues_data = submission.get_validation_issues()
     issues = [ValidationIssue(**v) for v in issues_data]
@@ -173,6 +189,7 @@ def get_grading_result(submission_id: str, db: Session = Depends(get_db)):
         review_reasons=submission.get_review_reasons(),
         validation_issues=issues,
         status=submission.status,
+        text_blocks=text_blocks,
         annotations=[
             AnnotationOut(
                 id=a.id,

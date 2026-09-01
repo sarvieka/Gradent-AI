@@ -134,7 +134,7 @@ class GeminiGrader(BaseGrader):
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.1,           # Low temperature for consistent grading
-                max_output_tokens=4096,
+                max_output_tokens=8192,
                 response_mime_type="application/json",
             ),
         )

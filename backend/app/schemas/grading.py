@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+from app.schemas.document import TextBlock
 from app.schemas.llm_output import CriterionStatus
 
 
@@ -54,6 +55,7 @@ class GradingResponse(BaseModel):
     validation_issues: list[ValidationIssue]
     status: str
     annotations: list["AnnotationOut"] = []
+    text_blocks: list[TextBlock] = []
     created_at: str = ""
 
 
