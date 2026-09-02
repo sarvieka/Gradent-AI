@@ -240,3 +240,26 @@ async def test_annotation_export(client, correct_pdf: Path, rubric_json: str):
     assert export_res.status_code == 200
     assert export_res.headers["content-type"] == "application/pdf"
     assert len(export_res.content) > 0
+
+
+@pytest.mark.asyncio
+async def test_complete_review_endpoint(client, correct_pdf: Path, rubric_json: str):
+    """Test that complete review endpoint finalizes status and idempotently updates database."""
+    with open(correct_pdf, "rb") as f:
+        create_res = client.post(
+            "/api/grading",
+            data={"rubric_json": rubric_json, "mock_mode": "fully_correct"},
+            files={"student_pdf": (correct_pdf.name, f, "application/pdf")},
+        )
+    sub_id = create_res.json()["submission_id"]
+
+    # Mark complete
+    complete_res = client.post(f"/api/grading/{sub_id}/complete")
+    assert complete_res.status_code == 200
+    assert complete_res.json()["status"] == "completed"
+    assert complete_res.json()["flagged_for_human_review"] is False
+
+    # Duplicate completion (idempotency check)
+    complete_res_2 = client.post(f"/api/grading/{sub_id}/complete")
+    assert complete_res_2.status_code == 200
+    assert complete_res_2.json()["status"] == "completed"

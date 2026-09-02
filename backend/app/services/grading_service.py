@@ -36,6 +36,7 @@ async def run_grading_pipeline(
     rubric: Rubric,
     grader: BaseGrader,
     db: Session,
+    original_filename: str | None = None,
 ) -> ValidatedGradingResult:
     """
     Execute the full grading pipeline:
@@ -52,6 +53,7 @@ async def run_grading_pipeline(
         ValidatedGradingResult with all grading data.
     """
     submission_id = str(uuid.uuid4())
+    display_filename = original_filename if original_filename else student_pdf_path.name
 
     # --- Step 1: Copy student PDF to storage ---
     stored_pdf_path = UPLOADS_DIR / f"{submission_id}_{student_pdf_path.name}"
@@ -68,7 +70,7 @@ async def run_grading_pipeline(
     # --- Step 3: Detect blank submissions ---
     if is_blank_submission(extracted):
         result = _create_blank_result(submission_id, rubric)
-        _persist_result(db, submission_id, stored_pdf_path, student_pdf_path.name,
+        _persist_result(db, submission_id, stored_pdf_path, display_filename,
                         question_pdf_path, rubric, student_blocks, result, [])
         return result
 
@@ -78,7 +80,7 @@ async def run_grading_pipeline(
     except Exception as e:
         # API/model failure: create a failed result
         result = _create_failed_result(submission_id, rubric, str(e))
-        _persist_result(db, submission_id, stored_pdf_path, student_pdf_path.name,
+        _persist_result(db, submission_id, stored_pdf_path, display_filename,
                         question_pdf_path, rubric, student_blocks, result, [])
         return result
 
@@ -91,7 +93,7 @@ async def run_grading_pipeline(
             submission_id, rubric,
             f"LLM output validation failed: {e}"
         )
-        _persist_result(db, submission_id, stored_pdf_path, student_pdf_path.name,
+        _persist_result(db, submission_id, stored_pdf_path, display_filename,
                         question_pdf_path, rubric, student_blocks, result, [])
         return result
 
@@ -108,7 +110,7 @@ async def run_grading_pipeline(
 
     # --- Step 7: Persist to database ---
     db_annotations = _persist_result(
-        db, submission_id, stored_pdf_path, student_pdf_path.name,
+        db, submission_id, stored_pdf_path, display_filename,
         question_pdf_path, rubric, student_blocks, result, annotation_data_list,
     )
 

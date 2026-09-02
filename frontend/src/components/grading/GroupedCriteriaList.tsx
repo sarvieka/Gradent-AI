@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Quote, Lightbulb, Sparkles, AlertCircle } from 'lucide-react';
 import type { CriterionResult, TextBlock } from '../../types';
 
@@ -94,6 +94,14 @@ const STATUS_LABELS: Record<string, string> = {
   unclear: 'Unclear',
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  correct: '#16a34a',
+  partial: '#ea580c',
+  incorrect: '#dc2626',
+  missing: '#64748b',
+  unclear: '#7c3aed',
+};
+
 export default function GroupedCriteriaList({
   criteria,
   textBlocks,
@@ -102,18 +110,32 @@ export default function GroupedCriteriaList({
   onSelectEvidence,
 }: Props) {
   const questionGroups = groupCriteria(criteria);
+  // Default all question dropdowns to collapsed ({})
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const blockMap = new Map<string, TextBlock>(textBlocks.map((b) => [b.id, b]));
 
+  // Auto-expand question group if teacher clicks a criterion or PDF annotation
+  useEffect(() => {
+    if (selectedCriterionId) {
+      const targetGroup = questionGroups.find((g) =>
+        g.criteria.some((c) => c.rubric_item_id === selectedCriterionId)
+      );
+      if (targetGroup) {
+        setCollapsed((prev) => ({ ...prev, [targetGroup.id]: false }));
+      }
+    }
+  }, [selectedCriterionId]);
+
   const toggleGroup = (groupId: string) => {
-    setCollapsed((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+    setCollapsed((prev) => ({ ...prev, [groupId]: prev[groupId] === false ? true : false }));
   };
 
   return (
     <div className="criteria-list">
       {questionGroups.map((group) => {
-        const isCollapsed = Boolean(collapsed[group.id]);
+        // Collapsed by default unless explicitly set to false
+        const isCollapsed = collapsed[group.id] !== false;
 
         return (
           <div key={group.id} style={{ marginBottom: 16 }}>
@@ -150,8 +172,9 @@ export default function GroupedCriteriaList({
                 {group.criteria.map((c, idx) => {
                   const isSelected = selectedCriterionId === c.rubric_item_id;
                   const title = getConciseTitle(c, idx);
+                  const statusColor = STATUS_COLORS[c.status] || '#64748b';
 
-                  // Map evidence block IDs to actual student text blocks
+                  // Map ALL evidence block IDs to actual student text blocks
                   const citedBlocks = (c.evidence_block_ids || [])
                     .map((bId) => blockMap.get(bId))
                     .filter((b): b is TextBlock => Boolean(b));
@@ -177,39 +200,49 @@ export default function GroupedCriteriaList({
 
                       {/* Description on selection */}
                       {isSelected && (
-                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8, marginTop: 6 }}>
                           {c.criterion_description}
                         </p>
                       )}
 
-                      {/* Human-Readable Student Evidence */}
+                      {/* Human-Readable Student Evidence — ALL blocks, each individually clickable */}
                       {citedBlocks.length > 0 ? (
-                        <div
-                          className="criterion-evidence"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectEvidence(c.rubric_item_id, citedBlocks[0].page, citedBlocks[0].id);
-                          }}
-                          style={{
-                            cursor: 'pointer',
-                            display: 'flex',
-                            gap: 8,
-                            padding: '8px 12px',
-                            background: isSelected ? '#eef0f8' : 'var(--color-bg)',
-                            borderRadius: 6,
-                            marginTop: 6,
-                          }}
-                          title="Click to locate evidence on student PDF"
-                        >
-                          <Quote size={14} className="criterion-evidence-icon" style={{ flexShrink: 0, marginTop: 2 }} />
-                          <div>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
-                              Evidence from answer (Page {citedBlocks[0].page})
-                            </div>
-                            <div style={{ fontSize: 12, color: 'var(--color-text)', fontStyle: 'italic' }}>
-                              "{citedBlocks[0].text.length > 100 ? citedBlocks[0].text.substring(0, 100) + '…' : citedBlocks[0].text}"
-                            </div>
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                            Evidence from answer
                           </div>
+                          {citedBlocks.map((block) => (
+                            <div
+                              key={block.id}
+                              className="criterion-evidence"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectEvidence(c.rubric_item_id, block.page, block.id);
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                display: 'flex',
+                                gap: 8,
+                                padding: '7px 10px',
+                                background: isSelected ? '#eef0f8' : 'var(--color-bg)',
+                                borderRadius: 6,
+                                marginBottom: 4,
+                                borderLeft: `3px solid ${statusColor}`,
+                                transition: 'background 150ms',
+                              }}
+                              title={`Click to locate evidence on student PDF (Page ${block.page})`}
+                            >
+                              <Quote size={13} style={{ flexShrink: 0, color: statusColor, marginTop: 2 }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginBottom: 2, fontWeight: 600 }}>
+                                  Page {block.page}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--color-text)', fontStyle: 'italic', wordBreak: 'break-word' }}>
+                                  "{block.text.length > 120 ? block.text.substring(0, 120) + '…' : block.text}"
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       ) : (
                         <div className="criterion-evidence" style={{ opacity: 0.7, padding: '6px 10px', marginTop: 6 }}>

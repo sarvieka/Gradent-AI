@@ -17,7 +17,7 @@ from pathlib import Path
 import fitz  # PyMuPDF
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.schemas.document import ExtractedDocument, TextBlock
@@ -90,7 +90,6 @@ def convert_bbox_to_pdf_points(
     Convert normalized OCR bounding box (0..1000 scale or 0..1 scale)
     to PDF-native point coordinates [x0, y0, x1, y1] (72 DPI).
     """
-    # Detect if scale is 0..1 or 0..1000
     max_val = max(bbox.ymin, bbox.xmin, bbox.ymax, bbox.xmax)
     scale = 1.0 if max_val <= 1.0 else 1000.0
 
@@ -99,7 +98,6 @@ def convert_bbox_to_pdf_points(
     x1 = round((bbox.xmax / scale) * page_width, 2)
     y1 = round((bbox.ymax / scale) * page_height, 2)
 
-    # Ensure x0 < x1 and y0 < y1
     if x0 >= x1:
         x1 = min(x0 + 50.0, page_width)
     if y0 >= y1:
@@ -108,20 +106,85 @@ def convert_bbox_to_pdf_points(
     return [x0, y0, x1, y1]
 
 
+def extract_handwritten_page_blocks(
+    page: fitz.Page,
+    page_num: int,
+    total_pages: int,
+    client: genai.Client | None = None,
+    model: str = "gemini-3.6-flash",
+) -> tuple[list[TextBlock], float, bool]:
+    """
+    Extract handwritten or scanned text blocks from a single PDF page using Gemini Vision.
+
+    Returns:
+        (list_of_text_blocks, overall_page_confidence, has_unreadable_flag)
+    """
+    if not settings.GEMINI_API_KEY:
+        logger.warning("GEMINI_API_KEY not set. Cannot run Gemini Vision page extraction.")
+        return [], 0.0, True
+
+    if client is None:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+    page_width = page.rect.width
+    page_height = page.rect.height
+
+    pix = page.get_pixmap(dpi=150)
+    img_bytes = pix.tobytes("png")
+
+    image_part = types.Part.from_bytes(data=img_bytes, mime_type="image/png")
+    prompt = f"Page {page_num} of {total_pages}.\n{VISION_OCR_PROMPT}"
+
+    logger.info("Sending page %d image to Gemini Vision OCR...", page_num)
+
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=[image_part, prompt],
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                response_mime_type="application/json",
+            ),
+        )
+
+        raw_text = response.text
+        if not raw_text or not raw_text.strip():
+            logger.warning("Gemini Vision returned empty text for page %d", page_num)
+            return [], 1.0, False
+
+        parsed_json = json.loads(raw_text)
+        vision_data = VisionOCRResponse.model_validate(parsed_json)
+
+        blocks: list[TextBlock] = []
+        has_unreadable = False
+
+        for idx, b in enumerate(vision_data.blocks, start=1):
+            if b.unreadable or b.confidence < 0.5:
+                has_unreadable = True
+
+            pdf_bbox = convert_bbox_to_pdf_points(b.bbox, page_width, page_height)
+            block_id = b.block_id if b.block_id.startswith(f"blk_p{page_num}_") else f"blk_p{page_num}_{idx:02d}"
+
+            if b.text.strip():
+                blocks.append(TextBlock(
+                    id=block_id,
+                    page=page_num,
+                    text=b.text.strip(),
+                    bbox=pdf_bbox,
+                    confidence=b.confidence,
+                ))
+
+        return blocks, vision_data.overall_confidence, has_unreadable
+    except Exception as e:
+        logger.error("Gemini Vision OCR error on page %d: %s", page_num, e)
+        return [], 0.0, True
+
+
 def extract_handwritten_blocks(
     pdf_path: str | Path, model: str = "gemini-3.6-flash"
 ) -> ExtractedDocument:
     """
-    Extract handwritten or scanned text from a PDF file using Gemini Vision.
-
-    Steps:
-    1. Render each page to an image.
-    2. Call Gemini Vision with structured OCR prompt.
-    3. Parse structured JSON response.
-    4. Convert normalized bounding boxes to PDF points.
-    5. Return normalized ExtractedDocument.
-
-    Falls back to a safe error document on failure without raising unhandled exceptions.
+    Extract handwritten or scanned text from all pages of a PDF file using Gemini Vision.
     """
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
@@ -145,61 +208,20 @@ def extract_handwritten_blocks(
     all_blocks: list[TextBlock] = []
     all_text_parts: list[str] = []
     page_confidences: list[float] = []
-    has_unreadable = False
+    has_unreadable_any = False
 
     try:
         for page_idx in range(total_pages):
-            page = doc[page_idx]
             page_num = page_idx + 1
-            page_width = page.rect.width
-            page_height = page.rect.height
-
-            # Render page to PNG bytes (150 DPI for good OCR clarity)
-            pix = page.get_pixmap(dpi=150)
-            img_bytes = pix.tobytes("png")
-
-            image_part = types.Part.from_bytes(data=img_bytes, mime_type="image/png")
-            prompt = f"Page {page_num} of {total_pages}.\n{VISION_OCR_PROMPT}"
-
-            logger.info("Sending page %d image to Gemini Vision OCR...", page_num)
-
-            response = client.models.generate_content(
-                model=model,
-                contents=[image_part, prompt],
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    response_mime_type="application/json",
-                ),
+            page = doc[page_idx]
+            page_blocks, conf, unreadable = extract_handwritten_page_blocks(
+                page, page_num, total_pages, client=client, model=model
             )
-
-            raw_text = response.text
-            if not raw_text or not raw_text.strip():
-                logger.warning("Gemini Vision returned empty text for page %d", page_num)
-                continue
-
-            # Parse and validate JSON
-            parsed_json = json.loads(raw_text)
-            vision_data = VisionOCRResponse.model_validate(parsed_json)
-
-            page_confidences.append(vision_data.overall_confidence)
-
-            for b in vision_data.blocks:
-                if b.unreadable or b.confidence < 0.5:
-                    has_unreadable = True
-
-                pdf_bbox = convert_bbox_to_pdf_points(b.bbox, page_width, page_height)
-                
-                # Ensure unique block ID format
-                block_id = b.block_id if b.block_id.startswith(f"blk_p{page_num}_") else f"blk_p{page_num}_{len(all_blocks)+1:02d}"
-
-                text_block = TextBlock(
-                    id=block_id,
-                    page=page_num,
-                    text=b.text.strip(),
-                    bbox=pdf_bbox,
-                    confidence=b.confidence,
-                )
-                all_blocks.append(text_block)
+            all_blocks.extend(page_blocks)
+            page_confidences.append(conf)
+            if unreadable:
+                has_unreadable_any = True
+            for b in page_blocks:
                 if b.text.strip():
                     all_text_parts.append(b.text.strip())
 
@@ -210,14 +232,16 @@ def extract_handwritten_blocks(
             if page_confidences
             else (0.0 if not all_blocks else 0.8)
         )
-        low_confidence = overall_conf < 0.7 or has_unreadable or len(all_blocks) == 0
+        low_confidence = overall_conf < 0.7 or has_unreadable_any or len(all_blocks) == 0
+
+        method = "failed" if (has_unreadable_any and len(all_blocks) == 0) else "gemini_vision"
 
         return ExtractedDocument(
             filename=pdf_path.name,
             total_pages=total_pages,
             blocks=all_blocks,
             raw_text="\n".join(all_text_parts),
-            extraction_method="gemini_vision",
+            extraction_method=method,
             overall_confidence=round(overall_conf, 2),
             low_confidence_flag=low_confidence,
         )

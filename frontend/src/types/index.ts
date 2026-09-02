@@ -47,6 +47,7 @@ export interface GradingResult {
   status: string;
   annotations: Annotation[];
   text_blocks?: TextBlock[];
+  total_pages?: number;
 }
 
 export interface HistoryEntry {

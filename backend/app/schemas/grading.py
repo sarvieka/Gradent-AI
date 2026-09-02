@@ -56,6 +56,7 @@ class GradingResponse(BaseModel):
     status: str
     annotations: list["AnnotationOut"] = []
     text_blocks: list[TextBlock] = []
+    total_pages: int = 1
     created_at: str = ""
 
 
@@ -83,3 +84,4 @@ class SubmissionSummary(BaseModel):
     status: str
     flagged_for_human_review: bool
     created_at: str
+    confidence: float = 1.0

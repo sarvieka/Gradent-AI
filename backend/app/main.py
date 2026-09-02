@@ -14,13 +14,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS for frontend development
+# CORS for frontend development with exposed custom headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Create database tables on startup
@@ -35,4 +36,3 @@ def health_check():
 
 # Mount all API routes
 app.include_router(api_router, prefix="/api")
-

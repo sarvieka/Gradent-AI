@@ -1,14 +1,58 @@
 """Annotation CRUD API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.annotation import Annotation
-from app.schemas.annotation import AnnotationUpdate
+from app.models.submission import Submission
+from app.schemas.annotation import AnnotationCreate, AnnotationUpdate
 from app.schemas.grading import AnnotationOut
 
 router = APIRouter(prefix="/annotations", tags=["Annotations"])
+
+
+@router.post("/{submission_id}", response_model=AnnotationOut, status_code=201)
+def create_annotation(
+    submission_id: str,
+    payload: AnnotationCreate,
+    db: Session = Depends(get_db),
+):
+    """Create a new teacher annotation on a submission."""
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    if len(payload.bbox) != 4:
+        raise HTTPException(status_code=422, detail="bbox must have exactly 4 values")
+
+    annotation = Annotation(
+        id=str(uuid.uuid4()),
+        submission_id=submission_id,
+        page=payload.page,
+        bbox_x0=payload.bbox[0],
+        bbox_y0=payload.bbox[1],
+        bbox_x1=payload.bbox[2],
+        bbox_y1=payload.bbox[3],
+        annotation_type=payload.annotation_type,
+        feedback_text=payload.feedback_text,
+        is_user_edited=True,
+    )
+    db.add(annotation)
+    db.commit()
+    db.refresh(annotation)
+
+    return AnnotationOut(
+        id=annotation.id,
+        submission_id=annotation.submission_id,
+        page=annotation.page,
+        bbox=annotation.bbox,
+        annotation_type=annotation.annotation_type,
+        feedback_text=annotation.feedback_text,
+        is_user_edited=annotation.is_user_edited,
+    )
 
 
 @router.patch("/{annotation_id}", response_model=AnnotationOut)

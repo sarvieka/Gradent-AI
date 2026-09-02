@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════
-   GradeMaster AI — Design System
+   Gradent AI — Design System
    ═══════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 /* ─── Reset ─── */
 *, *::before, *::after {
@@ -18,7 +18,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #f5f6fa;
   color: #1a1d29;
   line-height: 1.5;
@@ -57,8 +57,8 @@ body {
   --color-text-muted: #9ca3af;
 
   /* Layout */
-  --sidebar-width: 240px;
-  --sidebar-collapsed: 64px;
+  --sidebar-width: 230px;
+  --sidebar-collapsed: 60px;
   --header-height: 56px;
   --right-panel-width: 340px;
   --radius: 8px;
@@ -73,7 +73,7 @@ body {
 
   /* Transitions */
   --transition-fast: 150ms ease;
-  --transition: 200ms ease;
+  --transition: 220ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 300ms ease;
 }
 
@@ -84,10 +84,10 @@ body {
 }
 
 .app-sidebar {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  width: 230px;
+  min-width: 230px;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -95,119 +95,262 @@ body {
   left: 0;
   bottom: 0;
   z-index: 100;
+  transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1), min-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.app-sidebar.mini {
+  width: 60px;
+  min-width: 60px;
 }
 
 .app-main {
   flex: 1;
-  margin-left: var(--sidebar-width);
+  margin-left: 230px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  transition: margin-left 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ─── Sidebar ─── */
+.app-layout:has(.app-sidebar.mini) .app-main,
+.app-layout:has(.app-sidebar:not(.open)) .app-main {
+  margin-left: 60px;
+}
+
+/* ─── Sidebar Branding & Navigation ─── */
 .sidebar-brand {
-  padding: 24px 20px;
+  height: 64px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.sidebar-brand-icon {
-  width: 36px;
-  height: 36px;
-  background: var(--color-primary);
-  border-radius: var(--radius);
+.sidebar-brand-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.sidebar-brand-logo {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 16px;
 }
 
-.sidebar-brand-text h1 {
-  font-size: 15px;
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+
+.sidebar-brand-name {
+  font-size: 14px;
   font-weight: 700;
-  color: var(--color-text);
+  color: #0f172a;
+  letter-spacing: -0.2px;
   line-height: 1.2;
 }
 
-.sidebar-brand-text span {
+.sidebar-brand-tag {
   font-size: 10px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0.2px;
 }
 
+.sidebar-toggle-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.app-sidebar.mini .sidebar-brand {
+  padding: 0 14px;
+  justify-content: center;
+}
+
+/* Nav */
 .sidebar-nav {
   flex: 1;
-  padding: 8px 12px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 16px;
 }
 
 .sidebar-btn-new {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 16px;
-  background: var(--color-primary);
-  color: white;
+  height: 40px;
+  background: #0f172a;
+  color: #ffffff;
   border: none;
-  border-radius: var(--radius);
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--transition-fast);
-  margin-bottom: 16px;
+  transition: background 150ms ease, transform 100ms ease;
+  white-space: nowrap;
+  padding: 0 12px;
 }
 
 .sidebar-btn-new:hover {
-  background: var(--color-primary-hover);
+  background: #1e293b;
+}
+
+.sidebar-btn-new:active {
+  transform: scale(0.98);
+}
+
+.app-sidebar.mini .sidebar-btn-new {
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .sidebar-link {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
-  color: var(--color-text-secondary);
+  height: 38px;
+  padding: 0 12px;
+  color: #64748b;
   text-decoration: none;
-  border-radius: var(--radius);
-  font-size: 14px;
+  border-radius: 7px;
+  font-size: 13px;
   font-weight: 500;
-  transition: all var(--transition-fast);
+  transition: background 150ms ease, color 150ms ease;
   cursor: pointer;
   border: none;
   background: none;
   width: 100%;
   text-align: left;
+  white-space: nowrap;
+  position: relative;
 }
 
 .sidebar-link:hover {
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .sidebar-link.active {
-  background: var(--color-bg);
-  color: var(--color-primary);
+  background: #f1f5f9;
+  color: #0f172a;
   font-weight: 600;
 }
 
-.sidebar-footer {
-  padding: 16px 12px;
-  border-top: 1px solid var(--color-border);
+.sidebar-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: #0f172a;
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
 }
 
-.sidebar-footer .sidebar-link {
-  color: var(--color-text-muted);
+.app-sidebar.mini .sidebar-link {
+  padding: 0;
+  justify-content: center;
+}
+
+.app-sidebar.mini .sidebar-link.active::before {
+  left: 2px;
+}
+
+/* Footer */
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sidebar-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease;
+}
+
+.sidebar-user-btn:hover {
+  background: #f8fafc;
+}
+
+.sidebar-user-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-user-name {
   font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.sidebar-user-role {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.app-sidebar.mini .sidebar-user-btn {
+  padding: 4px;
+  justify-content: center;
 }
 
 /* ─── Content Header ─── */
@@ -717,7 +860,8 @@ body {
 .review-layout {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  align-items: flex-start;
+  min-height: calc(100vh - var(--header-height));
 }
 
 /* Center: PDF Viewer */
@@ -725,32 +869,82 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #e8e8e8;
+  background: #f1f5f9;
   position: relative;
+  min-width: 0;
 }
 
 .pdf-toolbar {
-  height: 40px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: var(--header-height);
+  z-index: 50;
+  height: 44px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 16px;
   gap: 12px;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: #475569;
+}
+
+.pdf-toolbar-docinfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pdf-toolbar-doc-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.pdf-toolbar-label {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pdf-toolbar-dot {
+  color: #cbd5e1;
+  font-size: 10px;
 }
 
 .pdf-toolbar-filename {
   font-weight: 500;
-  color: var(--color-text);
-  margin-right: auto;
+  color: #475569;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.pdf-toolbar-page-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 .pdf-toolbar-nav {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+
+.pdf-toolbar-page-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
 }
 
 .pdf-toolbar-btn {
@@ -760,49 +954,68 @@ body {
   align-items: center;
   justify-content: center;
   border: none;
-  background: none;
-  color: var(--color-text-secondary);
+  background: transparent;
+  color: #64748b;
   cursor: pointer;
-  border-radius: 4px;
-  transition: all var(--transition-fast);
+  border-radius: 6px;
+  transition: background 150ms ease, color 150ms ease;
 }
 
-.pdf-toolbar-btn:hover {
-  background: var(--color-bg);
-  color: var(--color-text);
+.pdf-toolbar-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.pdf-toolbar-btn:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.pdf-toolbar-zoom-btn {
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  background: transparent;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.pdf-toolbar-zoom-btn:hover {
+  background: #f1f5f9;
 }
 
 .pdf-toolbar-separator {
   width: 1px;
-  height: 20px;
-  background: var(--color-border);
+  height: 18px;
+  background: #e2e8f0;
   margin: 0 4px;
+  flex-shrink: 0;
 }
 
-.pdf-toolbar-zoom {
+.pdf-toolbar-toggle-sidebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-text);
-  min-width: 40px;
-  text-align: center;
-}
-
-.pdf-fitwidth-btn {
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 500;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  border-radius: 4px;
   cursor: pointer;
-  color: var(--color-text-secondary);
-  transition: all var(--transition-fast);
   white-space: nowrap;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
-.pdf-fitwidth-btn:hover {
-  background: var(--color-bg);
-  color: var(--color-text);
+.pdf-toolbar-toggle-sidebar:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
 .pdf-document-area {
@@ -944,7 +1157,11 @@ body {
   border-left: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: var(--header-height);
+  height: calc(100vh - var(--header-height));
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .grading-panel-header {

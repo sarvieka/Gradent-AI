@@ -3,6 +3,7 @@
 import tempfile
 from pathlib import Path
 
+import fitz
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -114,14 +115,24 @@ async def submit_grading(
             rubric=rubric,
             grader=grader,
             db=db,
+            original_filename=student_pdf.filename,
         )
     except GradingError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Fetch submission record to get text blocks
+    # Fetch submission record to get text blocks and page count
     submission = db.query(Submission).filter(Submission.id == result.submission_id).first()
     text_blocks_data = submission.get_text_blocks() if submission else []
     text_blocks = [TextBlock(**b) for b in text_blocks_data]
+
+    total_pages = 1
+    if submission and Path(submission.original_pdf_path).exists():
+        try:
+            doc = fitz.open(submission.original_pdf_path)
+            total_pages = len(doc)
+            doc.close()
+        except Exception:
+            total_pages = max([b.page for b in text_blocks], default=1)
 
     # Fetch annotations for the response
     annotations = db.query(Annotation).filter(
@@ -140,6 +151,7 @@ async def submit_grading(
         validation_issues=result.validation_issues,
         status=result.status,
         text_blocks=text_blocks,
+        total_pages=total_pages,
         annotations=[
             AnnotationOut(
                 id=a.id,
@@ -178,6 +190,15 @@ def get_grading_result(submission_id: str, db: Session = Depends(get_db)):
     issues_data = submission.get_validation_issues()
     issues = [ValidationIssue(**v) for v in issues_data]
 
+    total_pages = 1
+    if Path(submission.original_pdf_path).exists():
+        try:
+            doc = fitz.open(submission.original_pdf_path)
+            total_pages = len(doc)
+            doc.close()
+        except Exception:
+            total_pages = max([b.page for b in text_blocks], default=1)
+
     return GradingResponse(
         submission_id=submission.id,
         total_score=submission.total_score,
@@ -190,6 +211,7 @@ def get_grading_result(submission_id: str, db: Session = Depends(get_db)):
         validation_issues=issues,
         status=submission.status,
         text_blocks=text_blocks,
+        total_pages=total_pages,
         annotations=[
             AnnotationOut(
                 id=a.id,
@@ -204,3 +226,26 @@ def get_grading_result(submission_id: str, db: Session = Depends(get_db)):
         ],
         created_at=str(submission.created_at) if submission.created_at else "",
     )
+
+
+@router.post("/{submission_id}/complete", response_model=GradingResponse)
+def complete_grading_review(
+    submission_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Finalize and persist a submission review as 'completed'.
+    Marks status = 'completed', flagged_for_human_review = False.
+    Safe for duplicate calls (updates/finalizes the same submission record).
+    """
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    submission.status = "completed"
+    submission.flagged_for_human_review = False
+
+    db.commit()
+    db.refresh(submission)
+
+    return get_grading_result(submission_id, db)

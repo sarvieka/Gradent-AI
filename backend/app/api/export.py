@@ -108,7 +108,7 @@ def export_grading_pdf(submission_id: str, db: Session = Depends(get_db)):
     output_path = EXPORTS_DIR / output_filename
 
     try:
-        export_annotated_pdf(original_path, annotations, output_path)
+        export_annotated_pdf(original_path, annotations, output_path, submission=submission)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF export failed: {e}")
 

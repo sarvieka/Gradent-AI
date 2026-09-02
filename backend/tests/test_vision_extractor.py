@@ -137,7 +137,7 @@ def test_extract_handwritten_blocks_api_failure_handled(blank_pdf: Path):
     assert extracted.extraction_method == "failed"
     assert extracted.overall_confidence == 0.0
     assert extracted.low_confidence_flag is True
-    assert "Handwriting extraction failed" in extracted.raw_text
+    assert len(extracted.blocks) == 0
 
 
 def test_extract_handwritten_blocks_malformed_json(blank_pdf: Path):
@@ -198,3 +198,89 @@ def test_scanned_pdf_routes_to_gemini_vision(blank_pdf: Path):
     assert extracted.extraction_method == "gemini_vision"
     assert len(extracted.blocks) == 1
     assert extracted.blocks[0].text == "Handwritten TCP answer"
+
+
+def test_mixed_pdf_extraction(tmp_path: Path):
+    """Mixed PDF (typed page 1 + handwritten page 2) should extract native for p1 and vision for p2."""
+    import fitz
+    pdf_path = tmp_path / "mixed_test.pdf"
+    doc = fitz.open()
+
+    # Page 1: Typed text
+    p1 = doc.new_page(width=595, height=842)
+    p1.insert_text((50, 100), "Question 1: Explain electric circuit principles in detail.")
+
+    # Page 2: Blank (simulating handwritten scanned page)
+    doc.new_page(width=595, height=842)
+    doc.save(str(pdf_path))
+    doc.close()
+
+    mock_vision_p2 = ([
+        TextBlock(
+            id="blk_p2_01",
+            page=2,
+            text="Student handwritten answer for Q1: A closed circuit allows current flow.",
+            bbox=[50.0, 120.0, 500.0, 180.0],
+            confidence=0.94,
+        )
+    ], 0.94, False)
+
+    with patch("app.services.vision_extractor.extract_handwritten_page_blocks", return_value=mock_vision_p2) as mock_vision_page, \
+         patch("app.core.extractor.settings") as mock_settings:
+        mock_settings.GEMINI_API_KEY = "fake-key"
+        extracted = extract_text_blocks(pdf_path)
+
+    assert extracted.total_pages == 2
+    assert extracted.extraction_method == "gemini_vision"
+    assert len(extracted.blocks) == 2
+    assert extracted.blocks[0].page == 1
+    assert extracted.blocks[0].text.startswith("Question 1")
+    assert extracted.blocks[1].page == 2
+    assert extracted.blocks[1].text.startswith("Student handwritten answer")
+
+
+def test_blank_scanned_pdf(blank_pdf: Path):
+    """Visually blank scanned PDF should be identified as blank submission."""
+    mock_vision_empty = ExtractedDocument(
+        filename=blank_pdf.name,
+        total_pages=1,
+        blocks=[],
+        raw_text="",
+        extraction_method="gemini_vision",
+        overall_confidence=1.0,
+        low_confidence_flag=False,
+    )
+
+    with patch("app.services.vision_extractor.extract_handwritten_blocks", return_value=mock_vision_empty):
+        extracted = extract_text_blocks(blank_pdf)
+
+    assert is_blank_submission(extracted)
+    assert len(extracted.blocks) == 0
+
+
+def test_handwritten_page_with_diagram(blank_pdf: Path):
+    """Handwritten page containing diagram labels should extract vision text blocks."""
+    mock_vision_diagram = ExtractedDocument(
+        filename=blank_pdf.name,
+        total_pages=1,
+        blocks=[
+            TextBlock(
+                id="blk_p1_01",
+                page=1,
+                text="Diagram: Battery | Switch | Resistor | Ammeter | Voltmeter",
+                bbox=[100, 200, 400, 500],
+                confidence=0.88,
+            )
+        ],
+        raw_text="Diagram: Battery | Switch | Resistor | Ammeter | Voltmeter",
+        extraction_method="gemini_vision",
+        overall_confidence=0.88,
+        low_confidence_flag=False,
+    )
+
+    with patch("app.services.vision_extractor.extract_handwritten_blocks", return_value=mock_vision_diagram):
+        extracted = extract_text_blocks(blank_pdf)
+
+    assert not is_blank_submission(extracted)
+    assert len(extracted.blocks) == 1
+    assert "Ammeter" in extracted.blocks[0].text
