@@ -45,7 +45,7 @@ def _build_grader(grader_type: str, mock_mode: str) -> BaseGrader:
 
 
 @router.post("", response_model=GradingResponse)
-async def submit_grading(
+async def submit_grading (
     student_pdf: UploadFile = File(..., description="Student's answer paper (PDF)"),
     rubric_json: str | None = Form(None, description="Rubric JSON string (optional if rubric_pdf is uploaded)"),
     rubric_pdf: UploadFile | None = File(None, description="Model answer & rubric paper (PDF/document, optional)"),
@@ -93,7 +93,7 @@ async def submit_grading(
         except Exception:
             pass
 
-    # Build/parse Rubric object from rubric_json OR rubric_pdf
+    # Build/parse Rubric object from rubric_json OR rubric_pdf , calls the rubtric service (build_rubric_from_files)
     try:
         rubric = build_rubric_from_files(
             rubric_pdf_path=rubric_pdf_path,
@@ -104,10 +104,10 @@ async def submit_grading(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Invalid rubric or rubric file: {e}")
 
-    # Select grader
+    # Select grader => which grading implementation should be used? (helper function), calls buildGRadenr funciton
     grader = _build_grader(grader_type, mock_mode)
 
-    # Run the grading pipeline
+    # Run the grading pipeline, calls the grading service 
     try:
         result = await run_grading_pipeline(
             student_pdf_path=student_pdf_path,

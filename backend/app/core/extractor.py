@@ -67,9 +67,12 @@ def page_has_meaningful_native_text(blocks: list[TextBlock], min_chars: int = 10
 
 
 def extract_native_pdf_blocks(pdf_path: str | Path) -> ExtractedDocument:
+
+
     """
     Extract native text blocks from a typed PDF using PyMuPDF across all pages.
     """
+    
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")

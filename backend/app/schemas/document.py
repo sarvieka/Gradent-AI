@@ -5,10 +5,10 @@ from pydantic import BaseModel
 
 class TextBlock(BaseModel):
     """A single block of text extracted from a PDF page with its bounding box."""
-    id: str               # Stable block ID, e.g. "blk_p1_03"
-    page: int             # 1-indexed page number
-    text: str             # The extracted text content
-    bbox: list[float]     # [x0, y0, x1, y1] in PDF points (72 DPI)
+    id: str                  # Stable block ID, e.g. "blk_p1_03"
+    page: int                # 1-indexed page number
+    text: str                # The extracted text content
+    bbox: list[float]        # [x0, y0, x1, y1] in PDF points (72 DPI)
     confidence: float = 1.0  # OCR confidence score (0.0 to 1.0)
 
 

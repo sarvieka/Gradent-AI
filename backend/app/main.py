@@ -8,6 +8,9 @@ from app.api.router import api_router
 from app.config import settings
 from app.database import create_tables
 
+
+
+# app instaniation 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="AI-powered grading and annotation tool for student answer papers.",
@@ -17,11 +20,11 @@ app = FastAPI(
 # CORS for frontend development with exposed custom headers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # any website allowed (not good for a production grade app)
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["*"],  # any method like GET, POST, DELETE, PATCH allowed 
+    allow_headers=["*"],  # any type of data headers in their request is allowed (not good for a production grade app)
+    expose_headers=["*"], # any header exposed (not good for a production grade app)
 )
 
 # Create database tables on startup

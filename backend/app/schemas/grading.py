@@ -1,11 +1,13 @@
 """Schemas for validated grading results — after backend enforcement."""
+# Pydantic = a Python library used to define and validate the structure of data.
 
 from pydantic import BaseModel
+
 
 from app.schemas.document import TextBlock
 from app.schemas.llm_output import CriterionStatus
 
-
+# BaseModel is class provided by Pydantic => I want TextBlock to be a Pydantic model, so Pydantic can validate its data.
 class ValidatedCriterionResult(BaseModel):
     """A single rubric criterion after backend validation and score clamping."""
     rubric_item_id: str
