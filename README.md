@@ -1,106 +1,528 @@
-# AI-Powered Grading and Annotation Tool
+# Gradent AI
 
-An end-to-end AI-assisted grading and PDF annotation backend for student exam papers, powered by FastAPI, PyMuPDF, SQLite, and Google Gemini API.
+**AI-powered grading and annotation tool for student answer papers**
+
+[![Frontend](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![Build Tool](https://img.shields.io/badge/Build-Vite-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Language](https://img.shields.io/badge/Language-Python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Database](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![AI](https://img.shields.io/badge/AI-Google%20Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![PDF](https://img.shields.io/badge/PDF-PyMuPDF-000000)](https://pymupdf.readthedocs.io/)
+
+Gradent AI is an end-to-end AI-assisted grading and annotation tool for student answer papers. A teacher can upload a question paper, student answer paper, and marking rubric. The system extracts the student's answers, evaluates them criterion-by-criterion using Google Gemini, validates the result using deterministic backend rules, links grading decisions back to the student's answer, and generates editable annotations.
+
+The system supports both **digitally generated** and **scanned/handwritten** answer papers.
 
 ---
 
-## 🏗️ Extraction Architecture & Dual Strategy
+## Live Demo
 
-Student answer submissions arrive as PDF documents in two distinct formats:
-1. **Digitally Typed PDFs** (generated directly from text editors or word processors).
-2. **Scanned / Handwritten Answer Papers** (image-based PDFs or scanned physical papers).
+**Frontend:** https://gradent-ai.vercel.app/
 
-To handle both formats seamlessly, the system uses a **Dual Extraction Strategy**:
+**Backend:** https://gradent-ai-backend.onrender.com
+
+**API Docs:** https://gradent-ai-backend.onrender.com/docs
+
+---
+
+## What it does
+
+A teacher can upload:
+
+- Question paper
+- Student answer paper
+- Model answer / marking rubric
+
+Gradent AI then:
+
+1. Validates and stores the uploaded files
+2. Extracts the student's answer page-by-page
+3. Handles both typed and handwritten/scanned pages
+4. Evaluates the answer against the marking rubric using Google Gemini
+5. Validates the model output using deterministic backend rules
+6. Maps grading decisions to evidence in the student's answer
+7. Generates editable annotations
+8. Persists the grading session and review state
+9. Exports a separate annotated PDF
+
+---
+
+## Key Features
+
+### AI-Assisted Grading
+
+The student answer is evaluated against the teacher's marking rubric rather than a fixed answer template.
+
+Each criterion can contain:
+
+- Marks awarded
+- Maximum marks
+- Status
+- Explanation
+- Feedback
+- Correction where applicable
+- Confidence
+- Evidence references
+
+### Typed and Handwritten Support
+
+The extraction pipeline operates page-by-page.
+
+For digitally generated PDFs, **PyMuPDF** extracts the native text and its position on the page.
+
+If a page does not contain enough meaningful machine-readable text, it is routed to **Gemini Vision** for visual understanding of handwritten or scanned content.
+
+Both extraction paths are converted into the same `TextBlock` representation, allowing the downstream grading pipeline to remain consistent.
+
+### Explainable Grading
+
+Every grading decision can be connected back to evidence from the student's answer.
+
+The system uses evidence references to connect:
+
+```text
+AI grading decision
+        ↓
+Evidence block
+        ↓
+Page + bounding box
+        ↓
+Annotation on answer sheet
 
 ```
-                  Student Answer PDF
-                          │
-                          ▼
-            PyMuPDF Native Text Extraction
-                          │
-            ┌─────────────┴─────────────┐
-            ▼                           ▼
-[Sufficient Text Found]    [Little / No Native Text]
- (Digitally Typed PDF)     (Scanned / Handwritten PDF)
-            │                           │
-            │                           ▼
-            │               PyMuPDF Render Pages to PNG
-            │                           │
-            │                           ▼
-            │               Gemini Vision OCR API
-            │               (Structured BBox JSON)
-            │                           │
-            └─────────────┬─────────────┘
-                          │
-                          ▼
-             Normalized TextBlock Schema
-             (block_id, page, text, bbox [x0,y0,x1,y1], confidence)
-                          │
-                          ▼
-         Downstream Pipeline (Grader → Validator → Annotation Exporter)
+
+### Deterministic Validation
+
+The LLM is not trusted for the final score.
+
+The backend validates:
+
+Rubric criterion IDs
+Maximum marks
+Awarded marks
+Evidence references
+Confidence scores
+Missing criteria
+
+The final score is calculated by the backend from the validated criterion scores.
+
+### Human Review 
+
+The system can flag evaluations when there is genuine uncertainty, such as:
+
+Low confidence
+Invalid evidence references
+Missing rubric criteria
+Invalid score ranges
+Extraction uncertainty
+Model or API failures
+
+This provides a clear path for teacher review instead of silently accepting uncertain results.
+
+### Editable Annotations
+
+Teachers can:
+
+Review annotations
+Add annotations
+Edit feedback
+Move annotations
+Delete annotations
+
+Annotation changes do not require re-running the AI grading step.
+
+### Persistent History
+
+Grading sessions are stored in SQLite, including:
+
+Submission information
+Extracted text blocks
+Criterion-level results
+Score
+Confidence
+Review status
+Annotations
+
+Previous grading sessions can be reopened after a refresh or backend restart.
+
+### Separate PDF Export
+
+The original student answer paper is never modified.
+
+Instead, the system creates a separate annotated copy:
+
+```text
+Original Student PDF
+        +
+Current Annotation State
+        ↓
+Annotated PDF
 ```
 
 ---
 
-### 1. Typed PDF Extraction (`PyMuPDF`)
-- **Mechanism**: Extracts embedded text characters and font bounding boxes directly from the PDF dictionary structure using PyMuPDF (`fitz`).
-- **Performance**: High speed, zero API cost, 100% deterministic text accuracy.
-- **Output**: Returns `TextBlock` objects with native PDF coordinates `[x0, y0, x1, y1]` in 72 DPI points.
 
-### 2. Handwritten / Scanned Extraction (`Gemini Vision`)
-- **Mechanism**: Triggered automatically when PyMuPDF detects fewer than 10 text characters in a document.
-- **Process**:
-  1. Renders PDF pages to 150 DPI PNG images using `page.get_pixmap()`.
-  2. Sends page images to Google Gemini Vision (`gemini-3.6-flash`).
-  3. Prompts Gemini Vision to transcribe handwriting, identify distinct text blocks, and return structured JSON matching `VisionOCRResponse`.
-  4. Converts normalized 0–1000 bounding box coordinates into PDF-native points `[x0, y0, x1, y1]`.
+## Architecture
+
+Gradent AI is organized into an API layer, service layer, core processing layer, persistence layer, and frontend.
+
+```text
+
+                         GRADENT AI
+                              |
+                              v
+                    React + Vite Frontend
+                              |
+                         HTTP Request
+                              |
+                              v
+                       FastAPI API Layer
+                              |
+             +----------------+----------------+
+             |                |                |
+             v                v                v
+        grading.py       history.py      annotations.py
+             |
+             v
+      grading_service.py
+             |
+             v
+        extractor.py
+             |
+        +----+-------------------+
+        |                        |
+        v                        v
+     PyMuPDF            vision_extractor.py
+                                 |
+                           Gemini Vision
+        |                        |
+        +------------+-----------+
+                     |
+                     v
+                 TextBlocks
+                     |
+                     v
+             grader.grade(...)
+                     |
+              +------+------+
+              |             |
+              v             v
+         MockGrader    GeminiGrader
+                             |
+                             v
+                    gemini_service.py
+                             |
+                             v
+                        Gemini API
+                             |
+                             v
+                    LLMGradingOutput
+                             |
+                             v
+                        validator.py
+                             |
+                             v
+                  ValidatedGradingResult
+                             |
+                             v
+                   evidence_resolver.py
+                             |
+                             v
+                        Annotations
+                             |
+                             v
+                       SQLite Database
+                             |
+                +------------+------------+
+                |                         |
+                v                         v
+             History                 Teacher Review
+                                          |
+                                          v
+                                      export.py
+                                          |
+                                          v
+                                  pdf_exporter.py
+                                          |
+                                          v
+                                   Annotated PDF
+
+```
 
 ---
 
-### 📏 Bounding Box & Coordinate System
+## Data Flow
 
-Both extraction strategies normalize bounding boxes to the exact same coordinate system so that downstream modules (`evidence_resolver.py`, `pdf_exporter.py`, and frontend viewers) require zero format-specific branching:
+A simplified view of how data moves through the backend:
 
-- **Origin**: Top-left corner of the PDF page `(0.0, 0.0)`.
-- **Units**: PDF Points (72 points per inch, standard PDF DPI).
-- **Format**: `[x0, y0, x1, y1]` where `(x0, y0)` is the top-left coordinate and `(x1, y1)` is the bottom-right coordinate.
-- **Conversion Equation**:
-  $$x_0 = \frac{\text{xmin}}{\text{scale}} \times W_{\text{pdf}}, \quad y_0 = \frac{\text{ymin}}{\text{scale}} \times H_{\text{pdf}}$$
-  $$x_1 = \frac{\text{xmax}}{\text{scale}} \times W_{\text{pdf}}, \quad y_1 = \frac{\text{ymax}}{\text{scale}} \times H_{\text{pdf}}$$
-  *(where $\text{scale} = 1000.0$ for Gemini Vision normalized output)*
+```text
+Student PDF
+     ↓
+extractor.py
+     ↓
+ExtractedDocument
+     ↓
+TextBlocks
+     ↓
+grading_service.py
+     ↓
+GeminiGrader
+     ↓
+LLMGradingOutput
+     ↓
+validator.py
+     ↓
+ValidatedGradingResult
+     ↓
+evidence_resolver.py
+     ↓
+Annotations
+     ↓
+SQLite
+
+```
+--- 
+
+## System Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React + Vite + TypeScript |
+| Backend | Python + FastAPI |
+| AI | Google Gemini API |
+| Vision | Gemini Vision |
+| PDF Processing | PyMuPDF |
+| Validation | Pydantic + deterministic backend rules |
+| ORM | SQLAlchemy |
+| Database | SQLite |
+| API Style | REST-style HTTP APIs |
+| Deployment | Vercel + Render |
+
+--- 
+
+## Reliability
+
+Gradent AI is designed so that AI output is not treated as the final source of truth.
+
+```text
+LLM
+ ↓
+Structured Output
+ ↓
+Deterministic Validation
+ ↓
+Score Calculation
+ ↓
+Evidence Verification
+ ↓
+Human Review when necessary
+```
+
+The system flags cases such as:
+
+Invalid rubric references
+Missing criteria
+Invalid evidence references
+Scores outside allowed bounds
+Low-confidence evaluations
+Extraction uncertainty
+API or model failures
+
+The backend independently calculates the final score from validated criterion-level scores.
 
 ---
 
-### 🛡️ Confidence & Human Review Handling
+## Testing 
 
-Handwriting recognition is inherently probabilistic:
-- **Confidence Tracking**: Each `TextBlock` carries an OCR confidence score ($0.0 \le c \le 1.0$).
-- **Human Review Flag**: If overall extraction confidence falls below $0.70$ or unreadable blocks are detected, the document is flagged (`low_confidence_flag = True`).
-- **Pipeline Integration**: The `GradingService` preserves extraction uncertainty and marks the grading result with `flagged_for_human_review = True`, prompting teacher review in the UI.
-- **Graceful Fallback**: If Gemini Vision fails or returns malformed output, the system creates a controlled failure result instead of crashing the API. Fabricated OCR output is never generated.
+The backend includes tests covering:
+
+Fully correct answers
+Partially correct answers
+Incorrect answers
+Blank submissions
+OCR-like spelling errors
+Malformed model output
+Incomplete model output
+API and model failures
+Invalid or excessive scores
+Evidence resolution
+Annotation persistence
+PDF export
+Typed PDF extraction
+Handwritten/scanned extraction
+Mixed typed and handwritten pages
+
+The mock grader is used for deterministic tests where a controlled model response is required.
+
+This allows the validation and application logic to be tested without depending on live LLM responses
+
+--- 
+
+## Design Principles
+
+### AI for Semantic and Visual Understanding
+
+Gemini handles tasks that require understanding student answers, handwritten content, and rubric-based evaluation.
+
+### Deterministic Logic for Reliability
+
+Score validation, score calculation, evidence verification, persistence, annotation handling, and export remain under backend control.
+
+### Common Representation
+
+Typed and handwritten pages are converted into the same `TextBlock` representation so the rest of the grading pipeline does not need separate logic.
+
+### Separation of Concerns
+
+* **API layer** — Handles HTTP
+* **Services** — Handles workflows and external integrations
+* **Core modules** — Handles processing and validation
+* **Schemas** — Defines data contracts
+* **Models** — Handles database persistence
+
+### Original Files Remain Untouched
+
+The original student answer paper is preserved, while annotations and exported results are handled separately.
 
 ---
+## Setup & Installation
 
-### ⚠️ Limitations of Handwriting Recognition
+### Prerequisites
 
-1. **Illegible Scribbles**: Unclear handwriting may yield low confidence scores or missing criteria.
-2. **Overlapping Annotations**: Marginalia or diagrams drawn over handwritten text can distort bounding box estimations.
-3. **Multi-Column Layouts**: Complex non-standard handwriting columns require multi-page rendering for accurate block ordering.
+Make sure the following are installed:
 
----
+- Python 3.10+
+- Node.js 18+
+- npm
+- Git
 
-## 🧪 Testing
+### Clone the Repository
 
-Run the full backend test suite (29 automated unit & integration tests):
+```bash
+git clone https://github.com/sarvika/Gradent-AI.git
+cd Gradent-AI
+```
+
+### Backend Setup
+
+Navigate to the backend directory:
 
 ```bash
 cd backend
-venv/bin/pytest tests/ -v
 ```
 
-Run manual handwriting smoke test against a real PDF:
+Create and activate a virtual environment:
 
 ```bash
-cd backend
-venv/bin/python test_handwriting_smoke.py <path_to_pdf>
+python -m venv venv
+source venv/bin/activate
 ```
+
+Install the Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Copy the environment variable template:
+
+```cp .env.example .env
+```
+
+Update .env with the required configuration, including your Gemini API key.
+
+
+Start the FastAPI server from the `backend/` directory:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The backend will be available at:
+
+```text
+http://127.0.0.1:8000
+```
+
+Swagger API documentation:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Health check:
+
+```text
+http://127.0.0.1:8000/health
+```
+
+### Frontend Setup
+
+Open a new terminal and navigate to the frontend:
+
+```bash
+cd frontend
+```
+
+Install the dependencies:
+
+```bash
+npm install
+```
+
+Create a `.env` file inside `frontend/`:
+
+```env
+VITE_API_URL=http://127.0.0.1:8000
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+The frontend will be available at:
+
+```text
+http://localhost:5173
+```
+
+### Running the Project
+
+Both the backend and frontend need to be running:
+
+```text
+Frontend
+http://localhost:5173
+        ↓
+FastAPI Backend
+http://127.0.0.1:8000
+        ↓
+SQLite Database
+app.db
+```
+
+The Gemini API key should only be configured on the backend and should never be exposed in the frontend.
+
+---
+
+## Future Improvements
+
+Possible future improvements include:
+
+* PostgreSQL for larger-scale deployments
+* Object storage for uploaded PDFs
+* Background processing for large grading batches
+* Teacher score overrides and audit trails
+* More robust OCR confidence handling
+* Individual criterion regrading
+* Multi-question and multi-student batch grading
+* Better handling of visually complex answer sheets
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
