@@ -24,6 +24,8 @@ The system supports both **digitally generated** and **scanned/handwritten** ans
 
 **API Docs:** https://gradent-ai-backend.onrender.com/docs
 
+**Demo Video** https://drive.google.com/file/d/1fhSFp3Zx0lbgp5uxxv1nnAFmMJ5JQgCr/view?usp=sharing
+
 ---
 
 ## What it does
