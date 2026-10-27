@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_SAMESITE: str = "lax"
     SESSION_EXPIRE_DAYS: int = 7
     CORS_ORIGINS: list[str] = [
+        "https://gradent-ai.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
