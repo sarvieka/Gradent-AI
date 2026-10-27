@@ -1,15 +1,17 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Clock, Plus, Settings, User, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useSidebar } from '../../context/SidebarContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen, closeSidebar, openSidebar } = useSidebar();
+  const { user } = useAuth();
 
   const isNewGradingActive = location.pathname === '/' || location.pathname.startsWith('/review');
   const isHistoryActive = location.pathname === '/history';
-  const isSettingsActive = location.pathname === '/settings';
+  const isSettingsActive = location.pathname === '/settings' || location.pathname === '/profile';
 
   return (
     <aside className={`app-sidebar ${isOpen ? 'open' : 'mini'}`}>
@@ -76,7 +78,7 @@ export default function Sidebar() {
           </NavLink>
 
           <NavLink
-            to="/settings"
+            to="/profile"
             className={() => `sidebar-link ${isSettingsActive ? 'active' : ''}`}
             title={!isOpen ? "Settings" : undefined}
           >
@@ -90,15 +92,17 @@ export default function Sidebar() {
       <div className="sidebar-footer">
         <button
           className="sidebar-user-btn"
-          title={!isOpen ? "Teacher Profile (Evaluator / Teacher's Name)" : undefined}
+          onClick={() => navigate('/profile')}
+          title={!isOpen ? (user?.full_name || 'Evaluator Profile') : undefined}
+          aria-label="View Profile"
         >
           <div className="sidebar-user-avatar">
             <User size={16} />
           </div>
           {isOpen && (
             <div className="sidebar-user-info">
-              <span className="sidebar-user-name">Teacher's Name</span>
-              <span className="sidebar-user-role">Teacher / Evaluator</span>
+              <span className="sidebar-user-name">{user?.full_name || 'Evaluator'}</span>
+              <span className="sidebar-user-role">{user?.email || 'Teacher / Evaluator'}</span>
             </div>
           )}
         </button>
@@ -106,7 +110,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-
-
-
-

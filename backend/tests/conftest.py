@@ -34,8 +34,7 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    from app.models.submission import Submission
-    from app.models.annotation import Annotation
+    import app.models  # registers all models with Base.metadata
     Base.metadata.create_all(bind=engine)
     TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = TestSession()

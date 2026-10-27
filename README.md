@@ -162,6 +162,26 @@ Annotated PDF
 
 ---
 
+## Authentication & Security
+
+Gradent AI features a secure, full-stack authentication system:
+
+- **Password Security**: Passwords are hashed using **Argon2id** (`argon2-cffi`) with secure salt and memory-hard computational parameters. Plaintext passwords are never logged or stored.
+- **Session Management**: Authenticated sessions use cryptographically random opaque tokens (`secrets.token_urlsafe(32)`).
+  - Stored safely as **SHA-256 hashes** in the database (`user_sessions` table).
+  - Transmitted via **`HttpOnly`** cookies (`gradent_session`) with `SameSite=lax` (and `Secure=True` in production), mitigating XSS token theft.
+  - Revocable on logout or upon password change.
+  - Automatic expiration handling (default 7 days).
+- **CORS & Credentials**: Configured with explicit trusted origins (`http://localhost:5173`, `http://127.0.0.1:5173`, etc.) to support secure credentialed cookie transactions.
+- **Frontend State & Guards**: Centrally managed via `AuthContext` with automatic session validation on page refresh and client-side route protection (`<ProtectedRoute>`).
+- **Profile Management**: Evaluators can view account details, update permitted profile fields (full name), and securely update passwords with current password verification.
+- **Distinction Between Authentication & Authorisation**:
+  - *Authentication* identifies the evaluator and secures account access.
+  - *Authorisation* (associating specific student grading sessions and exports with user IDs) is structured for subsequent multi-tenant isolation without breaking existing grading pipelines.
+
+
+---
+
 
 ## Architecture
 

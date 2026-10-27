@@ -17,14 +17,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS for frontend development with exposed custom headers
+# CORS configuration supporting credentialed cookies
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # any website allowed (not good for a production grade app)
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
     allow_credentials=True,
-    allow_methods=["*"],  # any method like GET, POST, DELETE, PATCH allowed 
-    allow_headers=["*"],  # any type of data headers in their request is allowed (not good for a production grade app)
-    expose_headers=["*"], # any header exposed (not good for a production grade app)
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Create database tables on startup

@@ -74,3 +74,17 @@ export type ProgressStage = {
   status: 'pending' | 'active' | 'completed' | 'failed';
   progress?: number;
 };
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  message?: string;
+}
+

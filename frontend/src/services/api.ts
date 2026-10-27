@@ -85,6 +85,7 @@ export async function submitGrading(
     response = await fetch(`${API_BASE_URL}/grading`, {
       method: 'POST',
       body: formData,
+      credentials: 'include',
     });
   } catch {
     throw new ApiError(0, 'Unable to connect to FastAPI backend server at http://127.0.0.1:8000');
@@ -108,7 +109,9 @@ export async function submitGrading(
 export async function getGradingResult(submissionId: string): Promise<GradingResult> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/grading/${submissionId}`);
+    response = await fetch(`${API_BASE_URL}/grading/${submissionId}`, {
+      credentials: 'include',
+    });
   } catch {
     throw new ApiError(0, 'Unable to connect to FastAPI backend server at http://127.0.0.1:8000');
   }
@@ -131,7 +134,9 @@ export async function getGradingResult(submissionId: string): Promise<GradingRes
 export async function getHistory(): Promise<HistoryEntry[]> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/history`);
+    response = await fetch(`${API_BASE_URL}/history`, {
+      credentials: 'include',
+    });
   } catch {
     throw new ApiError(0, 'Unable to connect to FastAPI backend server at http://127.0.0.1:8000');
   }
@@ -149,6 +154,7 @@ export async function completeReview(submissionId: string): Promise<GradingResul
   try {
     response = await fetch(`${API_BASE_URL}/grading/${submissionId}/complete`, {
       method: 'POST',
+      credentials: 'include',
     });
   } catch {
     throw new ApiError(0, 'Unable to connect to grading server');
@@ -172,6 +178,7 @@ export async function createAnnotation(
     response = await fetch(`${API_BASE_URL}/annotations/${submissionId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(data),
     });
   } catch {
@@ -196,6 +203,7 @@ export async function updateAnnotation(
     response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(update),
     });
   } catch {
@@ -216,6 +224,7 @@ export async function deleteAnnotation(annotationId: string): Promise<void> {
   try {
     response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
       method: 'DELETE',
+      credentials: 'include',
     });
   } catch {
     throw new ApiError(0, 'Unable to connect to grading server');

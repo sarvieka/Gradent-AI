@@ -22,3 +22,6 @@ google-genai
 # Testing
 pytest
 pytest-asyncio
+
+# Authentication & Security
+argon2-cffi
